@@ -1,0 +1,11 @@
+version: "3.9"
+
+services:
+  wallet:
+    build: .
+  transaction:
+    build: .
+  blockchain:
+    build: .
+  miner:
+    build: .
