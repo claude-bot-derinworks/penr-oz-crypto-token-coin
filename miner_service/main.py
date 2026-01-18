@@ -149,17 +149,27 @@ async def submit_block(block: Block) -> bool:
         return False
 
 
-async def clear_pending_transactions():
-    """Clear pending transactions from Transaction service"""
+async def remove_mined_transactions(transactions: List[Transaction]):
+    """
+    Remove specific transactions from Transaction service.
+    Only removes transactions that were included in the mined block,
+    preserving any new transactions that arrived during mining.
+    """
     try:
         async with httpx.AsyncClient() as client:
             response = await client.post(
-                f"{TRANSACTION_SERVICE_URL}/transaction/clear", timeout=10.0
+                f"{TRANSACTION_SERVICE_URL}/transaction/remove",
+                json=[tx.model_dump() for tx in transactions],
+                timeout=10.0,
             )
             response.raise_for_status()
-            logger.info("Pending transactions cleared")
+            result = response.json()
+            logger.info(
+                f"Removed {result.get('count', 0)} mined transactions "
+                f"from pending pool"
+            )
     except httpx.HTTPError as e:
-        logger.error(f"Failed to clear pending transactions: {e}")
+        logger.error(f"Failed to remove mined transactions: {e}")
         # Non-critical error, continue anyway
 
 
@@ -239,8 +249,9 @@ async def mine_block():
             detail="Block rejected by blockchain service",
         )
 
-    # Step 6: Clear pending transactions
-    await clear_pending_transactions()
+    # Step 6: Remove only the transactions that were included in this block
+    # (excluding coinbase, which wasn't in the pending pool)
+    await remove_mined_transactions(pending_txs)
 
     # Update mining statistics
     mining_duration = time.time() - start_time
