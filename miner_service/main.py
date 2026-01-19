@@ -180,7 +180,7 @@ async def submit_block(block: Block):
         )
 
 
-async def remove_mined_transactions(transactions: List[Transaction]):
+async def remove_mined_transactions(transactions: List[Transaction]) -> bool:
     """
     Remove specific transactions from Transaction service.
     Only removes transactions that were included in the mined block,
@@ -188,8 +188,8 @@ async def remove_mined_transactions(transactions: List[Transaction]):
 
     Retries with exponential backoff to ensure transaction pool consistency.
 
-    Raises:
-        HTTPException(503): If removal fails after all retry attempts
+    Returns:
+        bool: True if removal succeeded, False if all retries failed
     """
     max_retries = 3
     base_delay = 1.0  # seconds
@@ -208,7 +208,7 @@ async def remove_mined_transactions(transactions: List[Transaction]):
                     f"Removed {result.get('count', 0)} mined transactions "
                     f"from pending pool"
                 )
-                return  # Success - exit function
+                return True  # Success
 
         except httpx.HTTPError as e:
             logger.error(
@@ -227,13 +227,7 @@ async def remove_mined_transactions(transactions: List[Transaction]):
                     "All retry attempts exhausted. Transaction pool may be "
                     "inconsistent - manual cleanup may be required."
                 )
-                raise HTTPException(
-                    status_code=503,
-                    detail=(
-                        "Block mined successfully but failed to update "
-                        "transaction pool. Manual cleanup may be required."
-                    ),
-                )
+                return False  # Cleanup failed
 
 
 @app.get("/health")
@@ -312,7 +306,7 @@ async def mine_block():
 
     # Step 6: Remove only the transactions that were included in this block
     # (excluding coinbase, which wasn't in the pending pool)
-    await remove_mined_transactions(pending_txs)
+    cleanup_success = await remove_mined_transactions(pending_txs)
 
     # Update mining statistics
     mining_duration = time.time() - start_time
@@ -324,7 +318,8 @@ async def mine_block():
 
     logger.info(f"=== Mining complete in {mining_duration:.2f}s ===")
 
-    return {
+    # Build response - always return success since block was mined and submitted
+    response = {
         "status": "success",
         "message": "Block mined successfully",
         "block_index": new_index,
@@ -334,6 +329,19 @@ async def mine_block():
         "duration_seconds": round(mining_duration, 2),
         "transactions_count": len(all_transactions),
     }
+
+    # Add warning if transaction cleanup failed
+    if not cleanup_success:
+        response["warning"] = (
+            "Block mined successfully but failed to update transaction pool. "
+            "Manual cleanup may be required to prevent duplicate transactions."
+        )
+        logger.warning(
+            "Mining succeeded but transaction cleanup failed - "
+            "returning success with warning"
+        )
+
+    return response
 
 
 @app.get("/miner/stats")
