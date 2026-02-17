@@ -1,4 +1,4 @@
-from . import constants
+from . import constants, contracts
 from .models import Block, Transaction, Wallet
 
-__all__ = ["Block", "Transaction", "Wallet", "constants"]
+__all__ = ["Block", "Transaction", "Wallet", "constants", "contracts"]

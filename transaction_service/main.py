@@ -2,6 +2,7 @@ from typing import List
 
 from fastapi import FastAPI, HTTPException
 
+from shared.contracts import PendingTransactionsResponse
 from shared.models.transaction import Transaction
 
 app = FastAPI()
@@ -33,9 +34,9 @@ def send_transaction(transaction: Transaction):
     return {"status": "pending"}
 
 
-@app.get("/transaction/pending")
+@app.get("/transaction/pending", response_model=PendingTransactionsResponse)
 def get_pending_transactions():
-    return pending_transactions
+    return PendingTransactionsResponse(transactions=pending_transactions)
 
 
 @app.post("/transaction/clear")

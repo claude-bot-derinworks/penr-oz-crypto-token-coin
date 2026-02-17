@@ -311,3 +311,137 @@ def test_blockchain_validation_after_tampering():
     response = client.get("/blockchain/validate")
     assert response.json()["valid"] is False
     assert "invalid" in response.json()["message"].lower()
+
+
+def test_balance_unknown_address():
+    """Test balance for an address with no transactions returns 0"""
+    response = client.get("/blockchain/balance/unknown_address")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["address"] == "unknown_address"
+    assert data["balance"] == 0.0
+
+
+def test_balance_after_receiving():
+    """Test balance reflects received amounts"""
+    response = client.get("/blockchain")
+    chain = response.json()["chain"]
+    previous_block = chain[-1]
+
+    timestamp = time.time()
+    transactions = [
+        {
+            "sender": "Alice",
+            "receiver": "Bob",
+            "amount": 25.0,
+            "timestamp": timestamp,
+        }
+    ]
+    nonce, hash_value = mine_block(
+        index=previous_block["index"] + 1,
+        timestamp=timestamp,
+        transactions=transactions,
+        previous_hash=previous_block["hash"],
+    )
+
+    payload = {
+        "index": previous_block["index"] + 1,
+        "timestamp": timestamp,
+        "transactions": transactions,
+        "previous_hash": previous_block["hash"],
+        "nonce": nonce,
+        "hash": hash_value,
+    }
+    response = client.post("/blockchain/add-block", json=payload)
+    assert response.status_code == 200
+
+    # Bob received 25.0
+    response = client.get("/blockchain/balance/Bob")
+    assert response.status_code == 200
+    assert response.json()["balance"] == 25.0
+
+    # Alice sent 25.0
+    response = client.get("/blockchain/balance/Alice")
+    assert response.status_code == 200
+    assert response.json()["balance"] == -25.0
+
+
+def test_balance_multiple_transactions():
+    """Test balance with multiple transactions across blocks"""
+    # Block 1: Alice sends 10 to Bob
+    response = client.get("/blockchain")
+    chain = response.json()["chain"]
+    previous_block = chain[-1]
+
+    timestamp = time.time()
+    transactions = [
+        {
+            "sender": "Alice",
+            "receiver": "Bob",
+            "amount": 10.0,
+            "timestamp": timestamp,
+        },
+        {
+            "sender": "Alice",
+            "receiver": "Bob",
+            "amount": 5.0,
+            "timestamp": timestamp,
+        },
+    ]
+    nonce, hash_value = mine_block(
+        index=previous_block["index"] + 1,
+        timestamp=timestamp,
+        transactions=transactions,
+        previous_hash=previous_block["hash"],
+    )
+
+    payload = {
+        "index": previous_block["index"] + 1,
+        "timestamp": timestamp,
+        "transactions": transactions,
+        "previous_hash": previous_block["hash"],
+        "nonce": nonce,
+        "hash": hash_value,
+    }
+    response = client.post("/blockchain/add-block", json=payload)
+    assert response.status_code == 200
+
+    # Block 2: Bob sends 3 back to Alice
+    response = client.get("/blockchain")
+    chain = response.json()["chain"]
+    previous_block = chain[-1]
+
+    timestamp = time.time()
+    transactions = [
+        {
+            "sender": "Bob",
+            "receiver": "Alice",
+            "amount": 3.0,
+            "timestamp": timestamp,
+        }
+    ]
+    nonce, hash_value = mine_block(
+        index=previous_block["index"] + 1,
+        timestamp=timestamp,
+        transactions=transactions,
+        previous_hash=previous_block["hash"],
+    )
+
+    payload = {
+        "index": previous_block["index"] + 1,
+        "timestamp": timestamp,
+        "transactions": transactions,
+        "previous_hash": previous_block["hash"],
+        "nonce": nonce,
+        "hash": hash_value,
+    }
+    response = client.post("/blockchain/add-block", json=payload)
+    assert response.status_code == 200
+
+    # Bob: received 10 + 5, sent 3 = 12.0
+    response = client.get("/blockchain/balance/Bob")
+    assert response.json()["balance"] == 12.0
+
+    # Alice: sent 10 + 5, received 3 = -12.0
+    response = client.get("/blockchain/balance/Alice")
+    assert response.json()["balance"] == -12.0
