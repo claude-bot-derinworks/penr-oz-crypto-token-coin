@@ -27,7 +27,9 @@ def test_send_transaction_success():
     # verify it's in pending
     response = client.get("/transaction/pending")
     assert response.status_code == 200
-    txs = response.json()
+    data = response.json()
+    assert "transactions" in data
+    txs = data["transactions"]
     assert len(txs) == 1
     assert txs[0]["sender"] == "Alice"
     assert txs[0]["receiver"] == "Bob"
@@ -41,7 +43,7 @@ def test_send_transaction_invalid_amount():
 
     # verify not added
     response = client.get("/transaction/pending")
-    assert len(response.json()) == 0
+    assert len(response.json()["transactions"]) == 0
 
 
 def test_send_transaction_same_sender_receiver():
@@ -64,4 +66,4 @@ def test_clear_transactions():
     assert response.status_code == 200
 
     response = client.get("/transaction/pending")
-    assert response.json() == []
+    assert response.json()["transactions"] == []

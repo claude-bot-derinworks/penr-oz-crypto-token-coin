@@ -10,6 +10,7 @@ import httpx
 from fastapi import FastAPI, HTTPException
 
 from shared.constants import DIFFICULTY_PREFIX, MINING_REWARD
+from shared.contracts import PendingTransactionsResponse
 from shared.models.block import Block
 from shared.models.transaction import Transaction
 
@@ -94,8 +95,8 @@ async def get_pending_transactions() -> List[Transaction]:
                 f"{TRANSACTION_SERVICE_URL}/transaction/pending", timeout=10.0
             )
             response.raise_for_status()
-            transactions_data = response.json()
-            return [Transaction(**t) for t in transactions_data]
+            pending = PendingTransactionsResponse(**response.json())
+            return pending.transactions
     except httpx.HTTPError as e:
         logger.error(f"Failed to retrieve pending transactions: {e}")
         raise HTTPException(

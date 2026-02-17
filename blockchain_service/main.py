@@ -4,11 +4,10 @@ import time
 from typing import List
 
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
 
 from shared.constants import DIFFICULTY_PREFIX
+from shared.contracts import AddBlockRequest, AddBlockResponse, BalanceResponse
 from shared.models.block import Block
-from shared.models.transaction import Transaction
 
 
 app = FastAPI()
@@ -108,15 +107,6 @@ class Blockchain:
 blockchain = Blockchain()
 
 
-class AddBlockRequest(BaseModel):
-    index: int
-    timestamp: float
-    transactions: List[Transaction]
-    previous_hash: str
-    nonce: int
-    hash: str
-
-
 @app.get("/health")
 def health():
     return {"status": "ok"}
@@ -128,7 +118,7 @@ def get_blockchain():
     return {"chain": blockchain.get_chain(), "length": len(blockchain.chain)}
 
 
-@app.post("/blockchain/add-block")
+@app.post("/blockchain/add-block", response_model=AddBlockResponse)
 def add_block(request: AddBlockRequest):
     """Add a new block to the blockchain"""
     # Convert request to Block model
@@ -144,11 +134,11 @@ def add_block(request: AddBlockRequest):
     # Validate and add the block
     try:
         if blockchain.add_block(block):
-            return {
-                "message": "Block added successfully",
-                "block": block,
-                "chain_length": len(blockchain.chain),
-            }
+            return AddBlockResponse(
+                message="Block added successfully",
+                block=block,
+                chain_length=len(blockchain.chain),
+            )
         else:
             raise HTTPException(
                 status_code=400,
@@ -156,6 +146,19 @@ def add_block(request: AddBlockRequest):
             )
     except ValueError as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/blockchain/balance/{address}", response_model=BalanceResponse)
+def get_balance(address: str):
+    """Get the balance of a wallet address by scanning the blockchain"""
+    balance = 0.0
+    for block in blockchain.get_chain():
+        for tx in block.transactions:
+            if tx.receiver == address:
+                balance += tx.amount
+            if tx.sender == address:
+                balance -= tx.amount
+    return BalanceResponse(address=address, balance=balance)
 
 
 @app.get("/blockchain/validate")
