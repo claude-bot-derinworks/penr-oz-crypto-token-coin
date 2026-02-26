@@ -61,7 +61,7 @@ class TestEndToEndHappyPath:
         blockchain_url: str,
         address: str,
     ) -> float:
-        resp = client.get(f"{blockchain_url}{BLOCKCHAIN_BALANCE_PATH}" f"/{address}")
+        resp = client.get(f"{blockchain_url}{BLOCKCHAIN_BALANCE_PATH}/{address}")
         resp.raise_for_status()
         data = resp.json()
         assert "balance" in data, (
@@ -121,7 +121,7 @@ class TestEndToEndHappyPath:
         deadline = time.time() + timeout_s
         tx_in_pool = False
         while time.time() < deadline:
-            resp = client.get(f"{transaction_url}" f"{TRANSACTION_PENDING_PATH}")
+            resp = client.get(f"{transaction_url}{TRANSACTION_PENDING_PATH}")
             resp.raise_for_status()
             data = resp.json()
             assert "transactions" in data, (
@@ -197,7 +197,7 @@ class TestEndToEndHappyPath:
         receiver: str,
         amount: float,
     ) -> None:
-        resp = client.get(f"{transaction_url}" f"{TRANSACTION_PENDING_PATH}")
+        resp = client.get(f"{transaction_url}{TRANSACTION_PENDING_PATH}")
         resp.raise_for_status()
         data = resp.json()
         assert "transactions" in data, (
@@ -347,7 +347,7 @@ class TestEndToEndHappyPath:
             )
 
             # Blockchain integrity check
-            resp = client.get(f"{blockchain_service_url}" f"{BLOCKCHAIN_VALIDATE_PATH}")
+            resp = client.get(f"{blockchain_service_url}{BLOCKCHAIN_VALIDATE_PATH}")
             resp.raise_for_status()
             data = resp.json()
             assert data.get("valid") is True, "Blockchain should be valid after mining"
