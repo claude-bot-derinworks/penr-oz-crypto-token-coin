@@ -18,6 +18,7 @@ MINE_PATH = "/mine"
 
 # Test configuration
 TEST_TX_AMOUNT = 10.0
+MINE_TIMEOUT_S = 120.0
 
 
 @pytest.fixture(scope="session")
@@ -133,6 +134,11 @@ class TestEndToEndHappyPath:
                 and tx["receiver"] == receiver
                 and tx["amount"] == amount
             ]
+            if len(matching) > 1:
+                pytest.fail(
+                    f"Found multiple ({len(matching)}) matching "
+                    f"transactions in pool: {matching}"
+                )
             if len(matching) == 1:
                 tx_in_pool = True
                 break
@@ -150,7 +156,7 @@ class TestEndToEndHappyPath:
     ) -> dict:
         resp = client.post(
             f"{miner_url}{MINE_PATH}",
-            timeout=120.0,
+            timeout=MINE_TIMEOUT_S,
         )
         resp.raise_for_status()
         mine_result = resp.json()
