@@ -16,6 +16,9 @@ BLOCKCHAIN_VALIDATE_PATH = "/blockchain/validate"
 MINER_STATS_PATH = "/miner/stats"
 MINE_PATH = "/mine"
 
+# Test configuration
+TEST_TX_AMOUNT = 10.0
+
 
 @pytest.fixture(scope="session")
 def wallet_service_url():
@@ -70,17 +73,14 @@ class TestEndToEndHappyPath:
         client: httpx.Client,
         wallet_url: str,
     ) -> tuple[str, str]:
-        resp = client.post(f"{wallet_url}{WALLET_CREATE_PATH}")
-        resp.raise_for_status()
-        data = resp.json()
-        assert "address" in data, f"Missing 'address' in response: {data}"
-        wallet_a = data["address"]
-
-        resp = client.post(f"{wallet_url}{WALLET_CREATE_PATH}")
-        resp.raise_for_status()
-        data = resp.json()
-        assert "address" in data, f"Missing 'address' in response: {data}"
-        wallet_b = data["address"]
+        addrs = []
+        for _ in range(2):
+            resp = client.post(f"{wallet_url}{WALLET_CREATE_PATH}")
+            resp.raise_for_status()
+            data = resp.json()
+            assert "address" in data, f"Missing 'address' in response: {data}"
+            addrs.append(data["address"])
+        wallet_a, wallet_b = addrs
 
         assert wallet_a != wallet_b, "Wallet addresses must be unique"
         return wallet_a, wallet_b
@@ -159,17 +159,24 @@ class TestEndToEndHappyPath:
         ), f"Mining did not succeed: {mine_result}"
         return mine_result
 
+    def _get_chain_length(
+        self,
+        client: httpx.Client,
+        blockchain_url: str,
+    ) -> int:
+        resp = client.get(f"{blockchain_url}{BLOCKCHAIN_PATH}")
+        resp.raise_for_status()
+        data = resp.json()
+        assert "length" in data, f"Missing 'length' in blockchain response: {data}"
+        return data["length"]
+
     def _verify_blockchain_grew(
         self,
         client: httpx.Client,
         blockchain_url: str,
         expected_before: int,
     ) -> None:
-        resp = client.get(f"{blockchain_url}{BLOCKCHAIN_PATH}")
-        resp.raise_for_status()
-        data = resp.json()
-        assert "length" in data, f"Missing 'length' in blockchain response: " f"{data}"
-        chain_length_after = data["length"]
+        chain_length_after = self._get_chain_length(client, blockchain_url)
         assert chain_length_after == expected_before + 1, (
             f"Blockchain should grow by 1 block: "
             f"before={expected_before}, "
@@ -258,7 +265,7 @@ class TestEndToEndHappyPath:
             wallet_a, wallet_b = self._create_wallets(client, wallet_service_url)
 
             # Step 2: Submit a transaction
-            tx_amount = 10.0
+            tx_amount = TEST_TX_AMOUNT
             self._submit_transaction(
                 client,
                 transaction_service_url,
@@ -279,11 +286,7 @@ class TestEndToEndHappyPath:
             )
 
             # Record blockchain length before mining
-            resp = client.get(f"{blockchain_service_url}{BLOCKCHAIN_PATH}")
-            resp.raise_for_status()
-            data = resp.json()
-            assert "length" in data, f"Missing 'length' in response: {data}"
-            chain_length_before = data["length"]
+            chain_length_before = self._get_chain_length(client, blockchain_service_url)
 
             # Get miner address from the running service
             resp = client.get(f"{miner_service_url}{MINER_STATS_PATH}")
