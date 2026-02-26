@@ -19,6 +19,7 @@ from shared.constants import MINING_REWARD
 # Test configuration
 TEST_TX_AMOUNT = 10.0
 MINE_TIMEOUT_S = 120.0
+DEFAULT_HTTP_CLIENT_TIMEOUT_S = 30.0
 
 
 @pytest.fixture(scope="session")
@@ -210,7 +211,7 @@ class TestEndToEndHappyPath:
             for tx in data["transactions"]
             if tx["sender"] == sender
             and tx["receiver"] == receiver
-            and tx["amount"] == amount
+            and tx["amount"] == pytest.approx(amount)
         ]
         assert len(still_pending) == 0, (
             "Our transaction should no longer be in the " "pending pool after mining"
@@ -274,7 +275,7 @@ class TestEndToEndHappyPath:
         6. Validate balances reflect the transaction and
            mining rewards
         """
-        with httpx.Client(timeout=30.0) as client:
+        with httpx.Client(timeout=DEFAULT_HTTP_CLIENT_TIMEOUT_S) as client:
             # Step 1: Create two wallets
             wallet_a, wallet_b = self._create_wallets(client, wallet_service_url)
 
