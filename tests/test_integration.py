@@ -3,13 +3,13 @@ import os
 import httpx
 import pytest
 
+from shared.constants import MINING_REWARD
+
 # Service URLs configurable through environment variables
 WALLET_SERVICE_URL = os.getenv("WALLET_SERVICE_URL", "http://localhost:8000")
 TRANSACTION_SERVICE_URL = os.getenv("TRANSACTION_SERVICE_URL", "http://localhost:8001")
 BLOCKCHAIN_SERVICE_URL = os.getenv("BLOCKCHAIN_SERVICE_URL", "http://localhost:8002")
 MINER_SERVICE_URL = os.getenv("MINER_SERVICE_URL", "http://localhost:8003")
-
-MINING_REWARD = 50.0
 
 
 @pytest.mark.integration
@@ -83,6 +83,26 @@ class TestEndToEndHappyPath:
             assert resp.status_code == 200
             chain_length_before = resp.json()["length"]
 
+            # Get miner address from the running miner service
+            resp = client.get(f"{MINER_SERVICE_URL}/miner/stats")
+            assert resp.status_code == 200, f"Failed to get miner stats: {resp.text}"
+            miner_address = resp.json()["miner_address"]
+
+            # Record balances before mining to compute deltas
+            resp = client.get(
+                f"{BLOCKCHAIN_SERVICE_URL}/blockchain/balance/{miner_address}"
+            )
+            assert resp.status_code == 200
+            miner_balance_before = resp.json()["balance"]
+
+            resp = client.get(f"{BLOCKCHAIN_SERVICE_URL}/blockchain/balance/{wallet_a}")
+            assert resp.status_code == 200
+            balance_a_before = resp.json()["balance"]
+
+            resp = client.get(f"{BLOCKCHAIN_SERVICE_URL}/blockchain/balance/{wallet_b}")
+            assert resp.status_code == 200
+            balance_b_before = resp.json()["balance"]
+
             # ----------------------------------------------------------
             # Step 4: Trigger mining via Miner Service
             # ----------------------------------------------------------
@@ -104,44 +124,57 @@ class TestEndToEndHappyPath:
                 f"before={chain_length_before}, after={chain_length_after}"
             )
 
+            # Verify our specific transaction is no longer pending
             resp = client.get(f"{TRANSACTION_SERVICE_URL}/transaction/pending")
             assert resp.status_code == 200
             pending_after = resp.json()["transactions"]
-            assert len(pending_after) == 0, (
-                f"Pending pool should be empty after mining, "
-                f"found {len(pending_after)} transactions"
+            still_pending = [
+                tx
+                for tx in pending_after
+                if tx["sender"] == wallet_a
+                and tx["receiver"] == wallet_b
+                and tx["amount"] == tx_amount
+            ]
+            assert len(still_pending) == 0, (
+                "Our transaction should no longer be in the pending pool "
+                "after mining"
             )
 
             # ----------------------------------------------------------
-            # Step 6: Validate balances
+            # Step 6: Validate balances (using deltas)
             # ----------------------------------------------------------
-            miner_address = os.getenv("MINER_ADDRESS", "MINER_REWARD_ADDRESS")
 
             # Miner should have received the mining reward
             resp = client.get(
                 f"{BLOCKCHAIN_SERVICE_URL}/blockchain/balance/{miner_address}"
             )
             assert resp.status_code == 200
-            miner_balance = resp.json()["balance"]
-            assert miner_balance == MINING_REWARD, (
-                f"Miner balance should be {MINING_REWARD}, " f"got {miner_balance}"
+            miner_balance_after = resp.json()["balance"]
+            miner_delta = miner_balance_after - miner_balance_before
+            assert miner_delta == MINING_REWARD, (
+                f"Miner balance should increase by {MINING_REWARD}, "
+                f"got delta {miner_delta}"
             )
 
             # Wallet A sent tx_amount
             resp = client.get(f"{BLOCKCHAIN_SERVICE_URL}/blockchain/balance/{wallet_a}")
             assert resp.status_code == 200
-            balance_a = resp.json()["balance"]
-            assert (
-                balance_a == -tx_amount
-            ), f"Wallet A balance should be {-tx_amount}, got {balance_a}"
+            balance_a_after = resp.json()["balance"]
+            delta_a = balance_a_after - balance_a_before
+            assert delta_a == -tx_amount, (
+                f"Wallet A balance should decrease by {tx_amount}, "
+                f"got delta {delta_a}"
+            )
 
             # Wallet B received tx_amount
             resp = client.get(f"{BLOCKCHAIN_SERVICE_URL}/blockchain/balance/{wallet_b}")
             assert resp.status_code == 200
-            balance_b = resp.json()["balance"]
-            assert (
-                balance_b == tx_amount
-            ), f"Wallet B balance should be {tx_amount}, got {balance_b}"
+            balance_b_after = resp.json()["balance"]
+            delta_b = balance_b_after - balance_b_before
+            assert delta_b == tx_amount, (
+                f"Wallet B balance should increase by {tx_amount}, "
+                f"got delta {delta_b}"
+            )
 
             # Blockchain integrity check
             resp = client.get(f"{BLOCKCHAIN_SERVICE_URL}/blockchain/validate")
