@@ -71,7 +71,9 @@ class TestEndToEndHappyPath:
             tx_in_pool = False
             while time.time() < deadline:
                 resp = client.get(f"{TRANSACTION_SERVICE_URL}/transaction/pending")
-                assert resp.status_code == 200, f"Failed to get pending txs: {resp.text}"
+                assert resp.status_code == 200, (
+                    f"Failed to get pending txs: {resp.text}"
+                )
                 pending_txs = resp.json()["transactions"]
                 matching = [
                     tx
@@ -85,7 +87,10 @@ class TestEndToEndHappyPath:
                     break
                 time.sleep(0.5)
 
-            assert tx_in_pool, f"Transaction from {wallet_a} to {wallet_b} did not appear in pending pool within timeout"
+            assert tx_in_pool, (
+                f"Transaction from {wallet_a} to {wallet_b} "
+                "did not appear in pending pool within timeout"
+            )
 
             # Record blockchain length before mining
             resp = client.get(f"{BLOCKCHAIN_SERVICE_URL}/blockchain")
