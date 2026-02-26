@@ -55,8 +55,8 @@ def poll_interval_s():
 class TestEndToEndHappyPath:
     """E2E integration test: Wallet -> Transaction -> Miner -> Blockchain"""
 
+    @staticmethod
     def _get_balance(
-        self,
         client: httpx.Client,
         blockchain_url: str,
         address: str,
@@ -69,8 +69,8 @@ class TestEndToEndHappyPath:
         )
         return data["balance"]
 
+    @staticmethod
     def _create_wallets(
-        self,
         client: httpx.Client,
         wallet_url: str,
     ) -> tuple[str, str]:
@@ -86,8 +86,8 @@ class TestEndToEndHappyPath:
         assert wallet_a != wallet_b, "Wallet addresses must be unique"
         return wallet_a, wallet_b
 
+    @staticmethod
     def _submit_transaction(
-        self,
         client: httpx.Client,
         transaction_url: str,
         sender: str,
@@ -108,8 +108,8 @@ class TestEndToEndHappyPath:
             data.get("status") == "pending"
         ), f"Expected status 'pending', got: {data}"
 
+    @staticmethod
     def _wait_for_tx_in_pool(
-        self,
         client: httpx.Client,
         transaction_url: str,
         sender: str,
@@ -132,7 +132,7 @@ class TestEndToEndHappyPath:
                 for tx in data["transactions"]
                 if tx["sender"] == sender
                 and tx["receiver"] == receiver
-                and tx["amount"] == amount
+                and tx["amount"] == pytest.approx(amount)
             ]
             if len(matching) > 1:
                 pytest.fail(
@@ -149,8 +149,8 @@ class TestEndToEndHappyPath:
             "did not appear in pending pool within timeout"
         )
 
+    @staticmethod
     def _trigger_mining(
-        self,
         client: httpx.Client,
         miner_url: str,
     ) -> dict:
@@ -165,8 +165,8 @@ class TestEndToEndHappyPath:
         ), f"Mining did not succeed: {mine_result}"
         return mine_result
 
+    @staticmethod
     def _get_chain_length(
-        self,
         client: httpx.Client,
         blockchain_url: str,
     ) -> int:
@@ -176,21 +176,23 @@ class TestEndToEndHappyPath:
         assert "length" in data, f"Missing 'length' in blockchain response: {data}"
         return data["length"]
 
+    @staticmethod
     def _verify_blockchain_grew(
-        self,
         client: httpx.Client,
         blockchain_url: str,
         expected_before: int,
     ) -> None:
-        chain_length_after = self._get_chain_length(client, blockchain_url)
+        chain_length_after = TestEndToEndHappyPath._get_chain_length(
+            client, blockchain_url
+        )
         assert chain_length_after == expected_before + 1, (
             f"Blockchain should grow by 1 block: "
             f"before={expected_before}, "
             f"after={chain_length_after}"
         )
 
+    @staticmethod
     def _verify_tx_no_longer_pending(
-        self,
         client: httpx.Client,
         transaction_url: str,
         sender: str,
@@ -214,8 +216,8 @@ class TestEndToEndHappyPath:
             "Our transaction should no longer be in the " "pending pool after mining"
         )
 
+    @staticmethod
     def _verify_balances(
-        self,
         client: httpx.Client,
         blockchain_url: str,
         miner_address: str,
@@ -226,20 +228,26 @@ class TestEndToEndHappyPath:
         balance_a_before: float,
         balance_b_before: float,
     ) -> None:
-        miner_balance_after = self._get_balance(client, blockchain_url, miner_address)
+        miner_balance_after = TestEndToEndHappyPath._get_balance(
+            client, blockchain_url, miner_address
+        )
         miner_delta = miner_balance_after - miner_balance_before
         assert miner_delta == pytest.approx(MINING_REWARD), (
             f"Miner balance should increase by "
             f"{MINING_REWARD}, got delta {miner_delta}"
         )
 
-        balance_a_after = self._get_balance(client, blockchain_url, wallet_a)
+        balance_a_after = TestEndToEndHappyPath._get_balance(
+            client, blockchain_url, wallet_a
+        )
         delta_a = balance_a_after - balance_a_before
         assert delta_a == pytest.approx(-tx_amount), (
             f"Wallet A balance should decrease by " f"{tx_amount}, got delta {delta_a}"
         )
 
-        balance_b_after = self._get_balance(client, blockchain_url, wallet_b)
+        balance_b_after = TestEndToEndHappyPath._get_balance(
+            client, blockchain_url, wallet_b
+        )
         delta_b = balance_b_after - balance_b_before
         assert delta_b == pytest.approx(tx_amount), (
             f"Wallet B balance should increase by " f"{tx_amount}, got delta {delta_b}"
@@ -312,12 +320,14 @@ class TestEndToEndHappyPath:
             mine_result = self._trigger_mining(client, miner_service_url)
 
             # Verify block index matches expectation
-            if "block_index" in mine_result:
-                assert mine_result["block_index"] == chain_length_before + 1, (
-                    f"Expected block index "
-                    f"{chain_length_before + 1}, "
-                    f"got {mine_result['block_index']}"
-                )
+            assert (
+                "block_index" in mine_result
+            ), "Mining result should contain 'block_index'"
+            assert mine_result["block_index"] == chain_length_before + 1, (
+                f"Expected block index "
+                f"{chain_length_before + 1}, "
+                f"got {mine_result['block_index']}"
+            )
 
             # Step 5: Confirm blockchain grew & pool cleared
             self._verify_blockchain_grew(
