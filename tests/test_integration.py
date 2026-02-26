@@ -1,4 +1,5 @@
 import os
+import time
 
 import httpx
 import pytest
@@ -15,6 +16,11 @@ MINER_SERVICE_URL = os.getenv("MINER_SERVICE_URL", "http://localhost:8003")
 @pytest.mark.integration
 class TestEndToEndHappyPath:
     """End-to-end integration test: Wallet -> Transaction -> Miner -> Blockchain"""
+
+    def _get_balance(self, client: httpx.Client, address: str) -> float:
+        resp = client.get(f"{BLOCKCHAIN_SERVICE_URL}/blockchain/balance/{address}")
+        resp.raise_for_status()
+        return resp.json()["balance"]
 
     def test_full_flow(self):
         """
@@ -60,23 +66,26 @@ class TestEndToEndHappyPath:
             # ----------------------------------------------------------
             # Step 3: Verify the transaction appears in the pending pool
             # ----------------------------------------------------------
-            resp = client.get(f"{TRANSACTION_SERVICE_URL}/transaction/pending")
-            assert resp.status_code == 200
-            pending = resp.json()["transactions"]
-            assert (
-                len(pending) >= 1
-            ), "Pending pool should contain at least 1 transaction"
+            # Poll until the transaction appears in the pending pool
+            deadline = time.time() + 10  # 10-second timeout
+            tx_in_pool = False
+            while time.time() < deadline:
+                resp = client.get(f"{TRANSACTION_SERVICE_URL}/transaction/pending")
+                assert resp.status_code == 200, f"Failed to get pending txs: {resp.text}"
+                pending_txs = resp.json()["transactions"]
+                matching = [
+                    tx
+                    for tx in pending_txs
+                    if tx["sender"] == wallet_a
+                    and tx["receiver"] == wallet_b
+                    and tx["amount"] == tx_amount
+                ]
+                if len(matching) == 1:
+                    tx_in_pool = True
+                    break
+                time.sleep(0.5)
 
-            matching = [
-                tx
-                for tx in pending
-                if tx["sender"] == wallet_a
-                and tx["receiver"] == wallet_b
-                and tx["amount"] == tx_amount
-            ]
-            assert (
-                len(matching) == 1
-            ), f"Expected 1 matching pending transaction, found {len(matching)}"
+            assert tx_in_pool, f"Transaction from {wallet_a} to {wallet_b} did not appear in pending pool within timeout"
 
             # Record blockchain length before mining
             resp = client.get(f"{BLOCKCHAIN_SERVICE_URL}/blockchain")
@@ -89,19 +98,9 @@ class TestEndToEndHappyPath:
             miner_address = resp.json()["miner_address"]
 
             # Record balances before mining to compute deltas
-            resp = client.get(
-                f"{BLOCKCHAIN_SERVICE_URL}/blockchain/balance/{miner_address}"
-            )
-            assert resp.status_code == 200
-            miner_balance_before = resp.json()["balance"]
-
-            resp = client.get(f"{BLOCKCHAIN_SERVICE_URL}/blockchain/balance/{wallet_a}")
-            assert resp.status_code == 200
-            balance_a_before = resp.json()["balance"]
-
-            resp = client.get(f"{BLOCKCHAIN_SERVICE_URL}/blockchain/balance/{wallet_b}")
-            assert resp.status_code == 200
-            balance_b_before = resp.json()["balance"]
+            miner_balance_before = self._get_balance(client, miner_address)
+            balance_a_before = self._get_balance(client, wallet_a)
+            balance_b_before = self._get_balance(client, wallet_b)
 
             # ----------------------------------------------------------
             # Step 4: Trigger mining via Miner Service
@@ -145,11 +144,7 @@ class TestEndToEndHappyPath:
             # ----------------------------------------------------------
 
             # Miner should have received the mining reward
-            resp = client.get(
-                f"{BLOCKCHAIN_SERVICE_URL}/blockchain/balance/{miner_address}"
-            )
-            assert resp.status_code == 200
-            miner_balance_after = resp.json()["balance"]
+            miner_balance_after = self._get_balance(client, miner_address)
             miner_delta = miner_balance_after - miner_balance_before
             assert miner_delta == MINING_REWARD, (
                 f"Miner balance should increase by {MINING_REWARD}, "
@@ -157,9 +152,7 @@ class TestEndToEndHappyPath:
             )
 
             # Wallet A sent tx_amount
-            resp = client.get(f"{BLOCKCHAIN_SERVICE_URL}/blockchain/balance/{wallet_a}")
-            assert resp.status_code == 200
-            balance_a_after = resp.json()["balance"]
+            balance_a_after = self._get_balance(client, wallet_a)
             delta_a = balance_a_after - balance_a_before
             assert delta_a == -tx_amount, (
                 f"Wallet A balance should decrease by {tx_amount}, "
@@ -167,9 +160,7 @@ class TestEndToEndHappyPath:
             )
 
             # Wallet B received tx_amount
-            resp = client.get(f"{BLOCKCHAIN_SERVICE_URL}/blockchain/balance/{wallet_b}")
-            assert resp.status_code == 200
-            balance_b_after = resp.json()["balance"]
+            balance_b_after = self._get_balance(client, wallet_b)
             delta_b = balance_b_after - balance_b_before
             assert delta_b == tx_amount, (
                 f"Wallet B balance should increase by {tx_amount}, "
