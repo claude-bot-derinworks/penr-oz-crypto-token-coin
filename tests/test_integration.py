@@ -4,17 +4,17 @@ import time
 import httpx
 import pytest
 
+from shared.api_paths import (
+    BLOCKCHAIN_BALANCE_PATH,
+    BLOCKCHAIN_PATH,
+    BLOCKCHAIN_VALIDATE_PATH,
+    MINE_PATH,
+    MINER_STATS_PATH,
+    TRANSACTION_PENDING_PATH,
+    TRANSACTION_SEND_PATH,
+    WALLET_CREATE_PATH,
+)
 from shared.constants import MINING_REWARD
-
-# API endpoint paths
-WALLET_CREATE_PATH = "/wallet/create"
-TRANSACTION_SEND_PATH = "/transaction/send"
-TRANSACTION_PENDING_PATH = "/transaction/pending"
-BLOCKCHAIN_PATH = "/blockchain"
-BLOCKCHAIN_BALANCE_PATH = "/blockchain/balance"
-BLOCKCHAIN_VALIDATE_PATH = "/blockchain/validate"
-MINER_STATS_PATH = "/miner/stats"
-MINE_PATH = "/mine"
 
 # Test configuration
 TEST_TX_AMOUNT = 10.0
