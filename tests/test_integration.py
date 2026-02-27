@@ -20,6 +20,8 @@ from shared.constants import MINING_REWARD
 TEST_TX_AMOUNT = 10.0
 MINE_TIMEOUT_S = 120.0
 DEFAULT_HTTP_CLIENT_TIMEOUT_S = 30.0
+POLL_TIMEOUT_S = 10
+POLL_INTERVAL_S = 0.5
 
 
 @pytest.fixture(scope="session")
@@ -44,12 +46,12 @@ def miner_service_url():
 
 @pytest.fixture(scope="session")
 def poll_timeout_s():
-    return 10
+    return POLL_TIMEOUT_S
 
 
 @pytest.fixture(scope="session")
 def poll_interval_s():
-    return 0.5
+    return POLL_INTERVAL_S
 
 
 @pytest.mark.integration
