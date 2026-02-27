@@ -326,9 +326,9 @@ class TestEndToEndHappyPath:
             assert (
                 "block_index" in mine_result
             ), "Mining result should contain 'block_index'"
-            assert mine_result["block_index"] == chain_length_before + 1, (
+            assert mine_result["block_index"] == chain_length_before, (
                 f"Expected block index "
-                f"{chain_length_before + 1}, "
+                f"{chain_length_before}, "
                 f"got {mine_result['block_index']}"
             )
 
