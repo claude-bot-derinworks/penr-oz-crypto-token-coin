@@ -34,13 +34,16 @@ The `tests/` directory contains an end-to-end integration test that validates th
 Wallet → Transaction → Miner → Blockchain flow using real HTTP calls. All four services
 must be running before you execute these tests.
 
-1. Start the services (for example via Docker Compose):
+1. Start each service on its own port using `uvicorn`:
 
    ```bash
-   docker-compose up -d
+   poetry run uvicorn wallet_service.main:app --port 8000 &
+   poetry run uvicorn transaction_service.main:app --port 8001 &
+   poetry run uvicorn blockchain_service.main:app --port 8002 &
+   poetry run uvicorn miner_service.main:app --port 8003 &
    ```
 
-2. Configure service URLs through environment variables (defaults shown):
+2. If needed, override service URLs through environment variables (defaults shown):
 
    ```bash
    export WALLET_SERVICE_URL=http://localhost:8000
