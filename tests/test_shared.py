@@ -24,7 +24,9 @@ class TestTransactionFields:
         assert tx.timestamp > 0
 
     def test_custom_timestamp(self):
-        tx = Transaction(sender="alice", receiver="bob", amount=1.0, timestamp=1234567890.0)
+        tx = Transaction(
+            sender="alice", receiver="bob", amount=1.0, timestamp=1234567890.0
+        )
         assert tx.timestamp == 1234567890.0
 
     def test_sender_required(self):
