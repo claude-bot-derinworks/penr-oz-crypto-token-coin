@@ -66,14 +66,6 @@ class TestBlockHashFormat:
         block = self._make_block(valid_hash)
         assert block.hash.startswith(DIFFICULTY_PREFIX)
 
-    def test_difficulty_prefix_value(self):
-        assert DIFFICULTY_PREFIX == "0000"
-
-    def test_hash_prefix_check(self):
-        valid_hash = "0000abcd" + "0" * 56
-        block = self._make_block(valid_hash)
-        assert block.hash[:4] == "0000"
-
     def test_invalid_hash_does_not_start_with_prefix(self):
         invalid_hash = "1234" + "a" * 60
         block = self._make_block(invalid_hash)
@@ -103,19 +95,17 @@ class TestWalletAddressFormat:
         wallet = Wallet(address=address)
         assert wallet.address == address
 
-    def test_sha256_hex_length(self):
-        # SHA-256 produces a 64-character hex string
-        import hashlib
-        import uuid
-        address = hashlib.sha256(uuid.uuid4().bytes).hexdigest()
-        wallet = Wallet(address=address)
-        assert len(wallet.address) == 64
+    def test_address_length_enforced(self):
+        with pytest.raises(ValidationError):
+            Wallet(address="a" * 63)
+        with pytest.raises(ValidationError):
+            Wallet(address="a" * 65)
 
-    def test_address_is_hex(self):
-        import hashlib
-        import uuid
-        address = hashlib.sha256(uuid.uuid4().bytes).hexdigest()
-        assert all(c in "0123456789abcdef" for c in address)
+    def test_address_hex_chars_enforced(self):
+        with pytest.raises(ValidationError):
+            Wallet(address="g" * 64)  # 'g' is not a hex character
+        with pytest.raises(ValidationError):
+            Wallet(address="A" * 64)  # uppercase not allowed
 
     def test_default_balance_zero(self):
         wallet = Wallet(address="b" * 64)
@@ -133,13 +123,6 @@ class TestWalletAddressFormat:
     def test_address_required(self):
         with pytest.raises(ValidationError):
             Wallet()
-
-    def test_unique_addresses(self):
-        import hashlib
-        import uuid
-        addr1 = hashlib.sha256(uuid.uuid4().bytes).hexdigest()
-        addr2 = hashlib.sha256(uuid.uuid4().bytes).hexdigest()
-        assert addr1 != addr2
 
 
 class TestConstants:
