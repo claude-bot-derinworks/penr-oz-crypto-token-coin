@@ -7,7 +7,7 @@ submissions, evaluations, and reward decisions across all services.
 from time import time
 from typing import Dict, Optional
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, ValidationInfo, field_validator
 
 
 class AIWorkTask(BaseModel):
@@ -16,7 +16,7 @@ class AIWorkTask(BaseModel):
     task_id: str
     description: str
     requester_address: str
-    reward_amount: float
+    reward_amount: float = Field(gt=0)
     created_at: float = Field(default_factory=time)
     metadata: Dict[str, str] = Field(default_factory=dict)
 
@@ -25,13 +25,6 @@ class AIWorkTask(BaseModel):
     def task_id_must_be_nonempty(cls, v: str) -> str:
         if not v.strip():
             raise ValueError("task_id must not be empty")
-        return v
-
-    @field_validator("reward_amount")
-    @classmethod
-    def reward_amount_must_be_positive(cls, v: float) -> float:
-        if v <= 0:
-            raise ValueError("reward_amount must be positive")
         return v
 
 
@@ -45,18 +38,11 @@ class AIWorkSubmission(BaseModel):
     submitted_at: float = Field(default_factory=time)
     trace_metadata: Dict[str, str] = Field(default_factory=dict)
 
-    @field_validator("submission_id")
+    @field_validator("submission_id", "task_id")
     @classmethod
-    def submission_id_must_be_nonempty(cls, v: str) -> str:
+    def ids_must_be_nonempty(cls, v: str, info: ValidationInfo) -> str:
         if not v.strip():
-            raise ValueError("submission_id must not be empty")
-        return v
-
-    @field_validator("task_id")
-    @classmethod
-    def task_id_must_be_nonempty(cls, v: str) -> str:
-        if not v.strip():
-            raise ValueError("task_id must not be empty")
+            raise ValueError(f"{info.field_name} must not be empty")
         return v
 
 
@@ -71,18 +57,11 @@ class AIWorkEvaluation(BaseModel):
     comments: str = ""
     evaluated_at: float = Field(default_factory=time)
 
-    @field_validator("evaluation_id")
+    @field_validator("evaluation_id", "submission_id")
     @classmethod
-    def evaluation_id_must_be_nonempty(cls, v: str) -> str:
+    def ids_must_be_nonempty(cls, v: str, info: ValidationInfo) -> str:
         if not v.strip():
-            raise ValueError("evaluation_id must not be empty")
-        return v
-
-    @field_validator("submission_id")
-    @classmethod
-    def submission_id_must_be_nonempty(cls, v: str) -> str:
-        if not v.strip():
-            raise ValueError("submission_id must not be empty")
+            raise ValueError(f"{info.field_name} must not be empty")
         return v
 
 
@@ -93,7 +72,7 @@ class RewardDecision(BaseModel):
     evaluation_id: str
     task_id: str
     worker_address: str
-    reward_amount: float
+    reward_amount: float = Field(ge=0)
     approved: bool
     reason: Optional[str] = None
     decided_at: float = Field(default_factory=time)
@@ -103,11 +82,4 @@ class RewardDecision(BaseModel):
     def decision_id_must_be_nonempty(cls, v: str) -> str:
         if not v.strip():
             raise ValueError("decision_id must not be empty")
-        return v
-
-    @field_validator("reward_amount")
-    @classmethod
-    def reward_amount_must_be_non_negative(cls, v: float) -> float:
-        if v < 0:
-            raise ValueError("reward_amount must not be negative")
         return v
