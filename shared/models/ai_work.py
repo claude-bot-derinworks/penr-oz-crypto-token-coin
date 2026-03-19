@@ -22,9 +22,9 @@ class AIWorkTask(BaseModel):
 
     @field_validator("task_id")
     @classmethod
-    def task_id_must_be_nonempty(cls, v: str) -> str:
+    def task_id_must_be_nonempty(cls, v: str, info: ValidationInfo) -> str:
         if not v.strip():
-            raise ValueError("task_id must not be empty")
+            raise ValueError(f"{info.field_name} must not be empty")
         return v
 
 
@@ -77,9 +77,9 @@ class RewardDecision(BaseModel):
     reason: Optional[str] = None
     decided_at: float = Field(default_factory=time)
 
-    @field_validator("decision_id")
+    @field_validator("decision_id", "evaluation_id", "task_id")
     @classmethod
-    def decision_id_must_be_nonempty(cls, v: str) -> str:
+    def ids_must_be_nonempty(cls, v: str, info: ValidationInfo) -> str:
         if not v.strip():
-            raise ValueError("decision_id must not be empty")
+            raise ValueError(f"{info.field_name} must not be empty")
         return v
